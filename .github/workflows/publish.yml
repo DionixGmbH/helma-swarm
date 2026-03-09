@@ -31,6 +31,8 @@ jobs:
 
       - name: Compile with Gradle
         run: devbox run --config .github -- bash -c 'cd .. && gradle jar'
+        env:
+          HELMA_VERSION: ${{ env.HELMA_VERSION || '26.3.9' }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -103,7 +105,7 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: ${{ github.event_name != 'pull_request' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           build-args: |
-            VERSION=${{ github.ref_type == 'tag' && github.ref_name || '26.3.9' }}
+            VERSION=${{ env.HELMA_VERSION || '26.3.9' }}
             VARIANT=${{ matrix.variant }}
 
       - name: Sign the published Docker image

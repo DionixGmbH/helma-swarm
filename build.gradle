@@ -20,7 +20,7 @@ sourceSets {
 
 // Resolve Helma installation directory from a Gradle property or environment variable
 ext.helmaInstallDir = (project.findProperty('helmaInstallDir') ?: System.getenv('HELMA_INSTALL_DIR'))
-ext.helmaVersion = (project.findProperty('helmaVersion') ?: version)
+ext.helmaVersion = (project.findProperty('helmaVersion') ?: System.getenv('HELMA_VERSION') ?: version)
 def helmaDownloadDir = layout.buildDirectory.dir('helma').get().asFile
 
 repositories {

@@ -35,6 +35,8 @@ jobs:
 
       - name: Build with Gradle
         run: devbox run --config .github -- bash -c 'cd .. && gradle jar'
+        env:
+          HELMA_VERSION: ${{ env.HELMA_VERSION || '26.3.9' }}
 
       - name: Create release at GitHub
         run: |
@@ -47,7 +49,7 @@ jobs:
 
       - name: Upload release assets to GitHub
         run: |
-          gh release upload "$GITHUB_REF_NAME" lib/helmaswarm-*.jar \
+          gh release upload "$GITHUB_REF_NAME" lib/*.jar \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
         env:
