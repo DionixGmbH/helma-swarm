@@ -103,7 +103,7 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: ${{ github.event_name != 'pull_request' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
+            VERSION=${{ github.ref_type == 'tag' && github.ref_name || '' }}
             VARIANT=${{ matrix.variant }}
 
       - name: Sign the published Docker image
