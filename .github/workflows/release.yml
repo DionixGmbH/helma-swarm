@@ -21,7 +21,7 @@ jobs:
         uses: jetify-com/devbox-install-action@v0.12.0
         with:
           project-path: .github
-          enable-cache: false
+          enable-cache: true
 
       - name: Create release notes
         id: create_release_notes

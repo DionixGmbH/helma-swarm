@@ -19,7 +19,7 @@ jobs:
         uses: jetify-com/devbox-install-action@v0.12.0
         with:
           project-path: .github
-          enable-cache: false
+          enable-cache: true
 
       - name: Compile with Gradle
         run: devbox run --config .github -- bash -c 'cd .. && gradle :compileJava'
