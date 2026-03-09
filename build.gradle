@@ -97,6 +97,21 @@ tasks.register('install') {
     }
 }
 
+tasks.register('prepareDockerLibs', Copy) {
+    group = 'build'
+    description = 'Copies runtime dependencies into lib for Docker/Docker Compose images.'
+    from({
+        configurations.runtimeClasspath.filter { f ->
+            f.name.contains('jgroups') || f.name.contains('backport-util-concurrent')
+        }
+    })
+    into layout.projectDirectory.dir('lib')
+}
+
+tasks.named('jar') {
+    finalizedBy tasks.named('prepareDockerLibs')
+}
+
 tasks.register('package', Zip) {
     group = 'distribution'
     description = 'Creates a distributable ZIP for distribution.'
