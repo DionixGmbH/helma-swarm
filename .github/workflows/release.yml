@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: '2*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@v0.12.0
+        with:
+          project-path: .github
+          enable-cache: false
+
+      - name: Create release notes
+        id: create_release_notes
+        run: |
+          release_notes=$(npx git-cliff@latest --latest)
+          # Write the release notes as a heredoc to the workflow output
+          # ⚠️ No white space around `<<` is crucial!
+          echo "release_notes<<.eot0x03" >> $GITHUB_OUTPUT
+          echo "$release_notes" >> $GITHUB_OUTPUT
+          echo ".eot0x03" >> $GITHUB_OUTPUT
+
+      - name: Build with Gradle
+        run: devbox run --config .github -- bash -c 'cd .. && gradle jar'
+
+      - name: Create release at GitHub
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Helma Swarm ${{ github.ref_name }}" \
+            --notes "${{ steps.create_release_notes.outputs.release_notes }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload release assets to GitHub
+        run: |
+          gh release upload "$GITHUB_REF_NAME" lib/helmaswarm-*.jar \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

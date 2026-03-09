@@ -1,0 +1,25 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/build.yml
+      - build.gradle
+      - src/**
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@v0.12.0
+        with:
+          project-path: .github
+          enable-cache: false
+
+      - name: Compile with Gradle
+        run: devbox run --config .github -- bash -c 'cd .. && gradle :compileJava'
