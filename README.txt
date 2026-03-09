@@ -73,8 +73,9 @@ HelmaSwarm is built with Gradle.
   DionixGmbH/helma GitHub releases (default version 26.3.9; override with
   -PhelmaVersion=<version>).
 
-  The install task copies helmaswarm-<version>.jar plus jgroups-all.jar and
-  concurrent.jar into the lib/ext directory of your Helma installation.
+  The install task copies helmaswarm-<version>.jar plus the JGroups and
+  backport-util-concurrent dependencies (from Maven) into the lib/ext
+  directory of your Helma installation.
 
 Configuration
 =============

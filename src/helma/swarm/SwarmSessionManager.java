@@ -17,7 +17,6 @@
 package helma.swarm;
 
 import org.jgroups.*;
-import org.jgroups.blocks.PullPushAdapter;
 import org.apache.commons.logging.Log;
 
 import java.io.*;
@@ -38,7 +37,7 @@ public class SwarmSessionManager extends SessionManager
     static final int TOUCH = 0;
     static final int DISCARD = 1;
 
-    PullPushAdapter adapter;
+    SwarmChannelAdapter adapter;
     Address address;
     Log log;
     volatile Thread runner;
@@ -58,14 +57,12 @@ public class SwarmSessionManager extends SessionManager
         debug = log.isDebugEnabled();
         try {
             adapter = ChannelUtils.getAdapter(app);
-            Channel channel = (Channel) adapter.getTransport();
-            // enable state exchange
-            channel.setOpt(Channel.GET_STATE_EVENTS, Boolean.TRUE);
-            channel.setOpt(Channel.AUTO_GETSTATE, Boolean.TRUE);
-            address = channel.getLocalAddress();
-            // register us as main message listeners so we can exchange state
+            JChannel channel = adapter.getTransport();
+            address = channel.getAddress();
             adapter.setListener(this);
-            if (!channel.getState(null, 5000)) {
+            try {
+                channel.getState(null, 5000);
+            } catch (Exception e) {
                 log.debug("Couldn't get session state. First instance in swarm?");
             }
             // start broadcaster thread
@@ -218,6 +215,19 @@ public class SwarmSessionManager extends SessionManager
         }
     }
 
+    public void getState(OutputStream output) throws Exception {
+        byte[] b = getState();
+        if (b != null) output.write(b);
+    }
+
+    public void setState(InputStream input) throws Exception {
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        byte[] b = new byte[4096];
+        int n;
+        while ((n = input.read(b)) != -1) buf.write(b, 0, n);
+        setState(buf.toByteArray());
+    }
+
     public void setState(byte[] bytes) {
         if (bytes != null) {
             try {
@@ -243,11 +253,11 @@ public class SwarmSessionManager extends SessionManager
         try {
             if (session.isDistributed()) {
                 SessionUpdate update = new SessionUpdate(session, reval, transferCacheNode);
-                adapter.send(new Message(null, address, update));
+                adapter.send(null, new Message((Address) null).setObject(update));
             } else {
                 session.setDistributed(true);
                 byte[] bytes = objectToBytes(session, reval);
-                adapter.send(new Message(null, address, (Serializable) bytes));
+                adapter.send(null, new Message((Address) null).setObject((Serializable) bytes));
             }
         } catch (Exception x) {
             log.error("Error in session replication", x);
@@ -261,7 +271,7 @@ public class SwarmSessionManager extends SessionManager
                 for (int i = 0; i < ids.length; i++)
                     idSet.remove(ids[i]);
                 Serializable idlist = new SessionIdList(operation, ids);
-                adapter.send(new Message(null, address, idlist));
+                adapter.send(null, new Message((Address) null).setObject(idlist));
             }
         } catch (Exception x) {
             log.error("Error broadcasting session list", x);

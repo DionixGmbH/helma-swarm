@@ -26,7 +26,6 @@ import helma.framework.repository.FileResource;
 import helma.framework.repository.Repository;
 import helma.util.CacheMap;
 
-import org.jgroups.blocks.*;
 import org.jgroups.*;
 import org.apache.commons.logging.Log;
 import org.w3c.dom.Document;
@@ -37,6 +36,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 import java.io.Serializable;
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.*;
 
 public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListener {
@@ -44,7 +45,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     CacheMap cache;
 
     Application app;
-    PullPushAdapter adapter;
+    SwarmChannelAdapter adapter;
     Address address;
     Log log;
 
@@ -79,8 +80,8 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
                     adapter.registerListener(domains[i].name, this);
                 }
             }
-            Channel channel = (Channel) adapter.getTransport();
-            address = channel.getLocalAddress();
+            JChannel channel = adapter.getTransport();
+            address = channel.getAddress();
         } catch (Exception e) {
             log.error("SwarmCache: Error starting/joining channel", e);
             e.printStackTrace();
@@ -139,9 +140,9 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
         InvalidationList list = new InvalidationList(keys, parentKeys, types);
         try {
             if (domain == null) {
-                adapter.send(ChannelUtils.CACHE, new Message(null, address, list));
+                adapter.send(ChannelUtils.CACHE, new Message((Address) null).setObject(list));
             } else {
-                adapter.send(domain.name, new Message(null, address, list));
+                adapter.send(domain.name, new Message((Address) null).setObject(list));
             }
         } catch (Exception x) {
             log.error("SwarmCache: Error sending invalidation list", x);
@@ -251,7 +252,7 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     }
 
     public Map<String,Object> getStatistics() {
-        Channel channel = (Channel) adapter.getTransport();
+        JChannel channel = adapter.getTransport();
         return channel.dumpStats();
     }
 
@@ -302,6 +303,14 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
     public byte[] getState() {
         // doesn't implement state transfer
         return null;
+    }
+
+    public void getState(OutputStream output) throws Exception {
+        // doesn't implement state transfer
+    }
+
+    public void setState(InputStream input) throws Exception {
+        // doesn't implement state transfer
     }
 
     public void setState(byte[] bytes) {

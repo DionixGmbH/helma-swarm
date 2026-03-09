@@ -19,19 +19,17 @@ import helma.objectmodel.db.IDGenerator;
 import helma.objectmodel.db.DbMapping;
 import helma.objectmodel.db.NodeManager;
 import helma.framework.core.Application;
-import org.jgroups.blocks.MessageDispatcher;
-import org.jgroups.blocks.RequestHandler;
-import org.jgroups.blocks.GroupRequest;
-import org.jgroups.blocks.PullPushAdapter;
 import org.jgroups.*;
 import org.apache.commons.logging.Log;
 
+import java.util.List;
+
 public class SwarmIDGenerator implements IDGenerator, MembershipListener,
-                                         RequestHandler {
+                                         SwarmRequestHandler {
 
     Application app;
     NodeManager nmgr;
-    MessageDispatcher dispatcher;
+    SwarmChannelAdapter adapter;
     Address address;
     volatile View view;
     Log log;
@@ -45,11 +43,10 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
                                   .toString();
         log = app.getLogger(logName);
         try {
-            PullPushAdapter adapter = ChannelUtils.getAdapter(app);
-            dispatcher = new MessageDispatcher(adapter, ChannelUtils.IDGEN, null, this, this);
-            Channel channel = (Channel) adapter.getTransport();
-            channel.setOpt(Channel.VIEW, Boolean.TRUE);
-            address = channel.getLocalAddress();
+            adapter = ChannelUtils.getAdapter(app);
+            adapter.registerListener(ChannelUtils.IDGEN, this);
+            JChannel channel = adapter.getTransport();
+            address = channel.getAddress();
             view = channel.getView();
             log.info("SwarmIDGenerator: Got initial view: " + view);
         } catch (Exception e) {
@@ -59,8 +56,8 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
     }
 
     public void shutdown() {
-        if (dispatcher != null) {
-            dispatcher.stop();
+        if (adapter != null) {
+            adapter.unregisterListener(ChannelUtils.IDGEN);
         }
         ChannelUtils.stopAdapter(app);
     }
@@ -69,24 +66,24 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
         String typeName = dbmap == null ? null : dbmap.getTypeName();
         // try three times to get id from group coordinator
         for (int i = 0; i < 3; i++) {
-            // if we are the coordinator, create id locally
-            Address coordinator = (Address) view.getMembers().firstElement();
-            if (coordinator == null) {
-                throw new NullPointerException("Coordinator is null in " + view);
+            List<Address> members = view.getMembers();
+            if (members == null || members.isEmpty()) {
+                throw new NullPointerException("View has no members: " + view);
             }
+            Address coordinator = members.get(0);
             if (address.equals(coordinator)) {
-                // no view, or we are the group coordinator. use local id generator
+                // we are the group coordinator, use local id generator
                 log.info("SwarmIDGenerator: Generating ID locally for " + dbmap);
                 return nmgr.doGenerateID(dbmap);
             }
-            Message msg = new Message(coordinator, address, typeName);
+            Message msg = new Message(coordinator).setObject(typeName);
             Object response = null;
             try {
-                // Note: message timeout should not be used if suspicion service is available.
-                // It's more of a safety net/last ressort here.
-                response = dispatcher.sendMessage(msg, GroupRequest.GET_FIRST, 20000);
-                log.info("SwarmIDGenerator: Received ID " + response + " for " + dbmap);
-            } catch (TimeoutException timeout) {
+                response = adapter.sendRequest(ChannelUtils.IDGEN, msg, 20000);
+                if (response != null) {
+                    log.info("SwarmIDGenerator: Received ID " + response + " for " + dbmap);
+                }
+            } catch (Exception timeout) {
                 log.info("SwarmIDGenerator: Message to " + coordinator + " timed out");
             }
             if (response != null) {
@@ -97,16 +94,16 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
     }
 
     public Object handle(Message msg) {
-        // only handle id generation request if we are the first node
-        if (address.equals(view.getMembers().firstElement())) {
-            try {
-                Object obj = msg.getObject();
-                DbMapping dbmap = obj == null ? null : nmgr.getDbMapping(obj.toString());
-                log.debug("SwarmIDGenerator: Processing ID request for " + dbmap);
-                return nmgr.doGenerateID(dbmap);
-            } catch (Exception x) {
-                log.error("SwarmIDGenerator: Error in central ID generator", x);
-            }
+        List<Address> members = view.getMembers();
+        if (members == null || members.isEmpty()) return null;
+        if (!address.equals(members.get(0))) return null;
+        try {
+            Object obj = msg.getObject();
+            DbMapping dbmap = obj == null ? null : nmgr.getDbMapping(obj.toString());
+            log.debug("SwarmIDGenerator: Processing ID request for " + dbmap);
+            return nmgr.doGenerateID(dbmap);
+        } catch (Exception x) {
+            log.error("SwarmIDGenerator: Error in central ID generator", x);
         }
         return null;
     }
@@ -124,4 +121,7 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
         log.info("SwarmIDGenerator: Got block");
     }
 
+    public void unblock() {
+        log.info("SwarmIDGenerator: Got unblock");
+    }
 }
