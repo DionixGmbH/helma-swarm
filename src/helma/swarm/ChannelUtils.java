@@ -16,17 +16,17 @@
 package helma.swarm;
 
 import org.jgroups.*;
-import org.w3c.dom.*;
 import helma.framework.core.Application;
 import helma.framework.repository.Repository;
 import helma.framework.repository.Resource;
 import helma.framework.repository.FileResource;
+import org.w3c.dom.*;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 import java.util.WeakHashMap;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Iterator;
 import java.io.File;
 
 public class ChannelUtils {
@@ -45,7 +45,9 @@ public class ChannelUtils {
 
         if (adapter == null) {
             SwarmConfig config = new SwarmConfig(app);
-            JChannel channel = new JChannel(config.getJGroupsProps());
+            // For JGroups 5.x we must use an XML configuration file name
+            // rather than the old protocol stack string syntax.
+            JChannel channel = new JChannel(config.getJGroupsConfig());
             String groupName = app.getProperty("swarm.name", app.getName());
             channel.connect(groupName + "_swarm");
             adapter = new SwarmChannelAdapter(channel, app);
@@ -87,30 +89,53 @@ public class ChannelUtils {
 
 class SwarmConfig {
 
-    // Default stack for JGroups 5.x (used when no swarm.conf or no matching stack).
-    // Aligns with the udp stack in swarm.conf (FRAG2, FD, VIEW_SYNC, NAKACK2, UNICAST3) and is valid for 3.x–5.x.
-    String jGroupsProps =
-            "UDP(mcast_addr=224.0.0.132;mcast_port=22024;ip_ttl=32;" +
-                "bind_port=48848;port_range=1000;" +
-                "mcast_send_buf_size=150000;mcast_recv_buf_size=80000):" +
-            "PING(timeout=2000;num_initial_members=3):" +
-            "MERGE2(min_interval=5000;max_interval=10000):" +
-            "FD_SOCK:" +
-            "FD(timeout=10000;max_tries=5;shun=true):" +
-            "VERIFY_SUSPECT(timeout=1500):" +
-            "pbcast.NAKACK2(gc_lag=50;retransmit_timeout=300,600,1200,2400,4800):" +
-            "UNICAST3(timeout=5000):" +
-            "pbcast.STABLE(desired_avg_gossip=20000):" +
-            "VIEW_SYNC(avg_send_interval=60000):" +
-            "pbcast.GMS(join_timeout=5000;join_retry_timeout=2000;shun=false;print_local_addr=true):" +
-            "FRAG2(frag_size=8192):" +
-            "pbcast.STATE_TRANSFER";
+    // Name of the JGroups XML configuration to use with JGroups 5.x.
+    // This is ultimately passed to new JChannel(jGroupsConfig).
+    private final String jGroupsConfig;
 
-    public SwarmConfig (Application app) {
+    public SwarmConfig(Application app) {
+        String stackName = app.getProperty("swarm.jgroups.stack", "udp");
+
+        // 1) Try to resolve from swarm.conf (app-specific or repository default)
+        String fromSwarmConf = resolveFromSwarmConf(app, stackName);
+
+        if (fromSwarmConf != null && fromSwarmConf.length() > 0) {
+            jGroupsConfig = fromSwarmConf;
+        } else {
+            // 2) Fallback to built-in JGroups configs
+            if (stackName != null) {
+                String s = stackName.trim();
+                String lower = s.toLowerCase();
+                if ("udp".equals(lower)) {
+                    jGroupsConfig = "udp.xml";
+                } else if ("tcp".equals(lower)) {
+                    jGroupsConfig = "tcp.xml";
+                } else {
+                    // Assume the property directly names a JGroups XML config
+                    // (either on the classpath or as a filesystem path)
+                    jGroupsConfig = s;
+                }
+            } else {
+                jGroupsConfig = "udp.xml";
+            }
+        }
+    }
+
+    public String getJGroupsConfig() {
+        return jGroupsConfig;
+    }
+
+    /**
+     * Resolve the JGroups configuration name/path from swarm.conf.
+     * This keeps compatibility with per-app swarm.conf while being JGroups 5–friendly:
+     * each &lt;jgroups-stack&gt; should supply either a 'config' attribute
+     * or textual content naming a JGroups XML config (e.g. "udp.xml", "tcp.xml",
+     * or "my-swarm-udp.xml").
+     */
+    private String resolveFromSwarmConf(Application app, String stackName) {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 
         Resource res = null;
-
         String conf = app.getProperty("swarm.conf");
 
         if (conf != null) {
@@ -120,17 +145,18 @@ class SwarmConfig {
             while (reps.hasNext()) {
                 Repository rep = (Repository) reps.next();
                 res = rep.getResource("swarm.conf");
-                if (res != null)
+                if (res != null) {
                     break;
+                }
             }
         }
 
         if (res == null || !res.exists()) {
-            app.logEvent("Resource \"" + conf + "\" not found, using defaults");
-            return;
+            // No swarm.conf – caller will fall back to defaults.
+            return null;
         }
 
-        app.logEvent("HelmaSwarm: Reading config from " + res);
+        app.logEvent("HelmaSwarm: Reading JGroups stack config from " + res);
 
         try {
             DocumentBuilder builder = factory.newDocumentBuilder();
@@ -139,50 +165,56 @@ class SwarmConfig {
             NodeList nodes = root.getElementsByTagName("jgroups-stack");
 
             if (nodes.getLength() == 0) {
-                app.logEvent("No JGroups stack found in swarm.conf, using defaults");
-            } else {
-                NodeList jgroups = null;
-
-                String stackName = app.getProperty("swarm.jgroups.stack", "udp");
-                for (int i = 0; i < nodes.getLength(); i++) {
-                    Element elem = (Element) nodes.item(i);
-                    if (stackName.equalsIgnoreCase(elem.getAttribute("name"))) {
-                        jgroups = elem.getChildNodes();
-                        break;
-                    }
-                }
-                if (jgroups == null) {
-                    app.logEvent("JGroups stack \"" + stackName +
-                            "\" not found in swarm.conf, using first element");
-                    jgroups = nodes.item(0).getChildNodes();
-                }
-
-                StringBuffer buffer = new StringBuffer();
-                for (int i = 0; i < jgroups.getLength(); i++) {
-                    Node node = jgroups.item(i);
-                    if (! (node instanceof Text)) {
-                        continue;
-                    }
-                    String str = ((Text) node).getData();
-                    for (int j = 0; j < str.length(); j++) {
-                        char c = str.charAt(j);
-                        if (!Character.isWhitespace(c)) {
-                            buffer.append(c);
-                        }
-                    }
-                }
-                if (buffer.length() > 0) {
-                    jGroupsProps = buffer.toString();
-                }
+                app.logEvent("No <jgroups-stack> elements found in swarm.conf");
+                return null;
             }
 
-        } catch (Exception e) {
-            app.logError("HelmaSwarm: Error reading config from " + res, e);
-        }
-    }
+            String wanted = (stackName != null) ? stackName : "udp";
+            String selectedConfig = null;
 
-    public String getJGroupsProps() {
-        return jGroupsProps;
+            for (int i = 0; i < nodes.getLength(); i++) {
+                Element elem = (Element) nodes.item(i);
+                String nameAttr = elem.getAttribute("name");
+                if (nameAttr == null) {
+                    continue;
+                }
+                if (!wanted.equalsIgnoreCase(nameAttr)) {
+                    continue;
+                }
+
+                // Prefer explicit config="..." attribute.
+                String configAttr = elem.getAttribute("config");
+                if (configAttr != null && configAttr.trim().length() > 0) {
+                    selectedConfig = configAttr.trim();
+                    break;
+                }
+
+                // Fallback: use trimmed textual content as the config name/path.
+                StringBuilder buf = new StringBuilder();
+                NodeList children = elem.getChildNodes();
+                for (int j = 0; j < children.getLength(); j++) {
+                    Node node = children.item(j);
+                    if (node instanceof Text) {
+                        buf.append(((Text) node).getData());
+                    }
+                }
+                String text = buf.toString().trim();
+                if (text.length() > 0) {
+                    selectedConfig = text;
+                }
+                break;
+            }
+
+            if (selectedConfig == null || selectedConfig.length() == 0) {
+                app.logEvent("JGroups stack \"" + wanted +
+                             "\" not found or has no config in swarm.conf");
+            }
+            return selectedConfig;
+
+        } catch (Exception e) {
+            app.logError("HelmaSwarm: Error reading JGroups stack config from " + res, e);
+            return null;
+        }
     }
 
 }
