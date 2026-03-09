@@ -19,12 +19,16 @@ import helma.objectmodel.db.IDGenerator;
 import helma.objectmodel.db.DbMapping;
 import helma.objectmodel.db.NodeManager;
 import helma.framework.core.Application;
-import org.jgroups.*;
+import org.jgroups.Address;
+import org.jgroups.JChannel;
+import org.jgroups.Message;
+import org.jgroups.ObjectMessage;
+import org.jgroups.View;
 import org.apache.commons.logging.Log;
 
 import java.util.List;
 
-public class SwarmIDGenerator implements IDGenerator, MembershipListener,
+public class SwarmIDGenerator implements IDGenerator, SwarmMembershipListener,
                                          SwarmRequestHandler {
 
     Application app;
@@ -76,7 +80,7 @@ public class SwarmIDGenerator implements IDGenerator, MembershipListener,
                 log.info("SwarmIDGenerator: Generating ID locally for " + dbmap);
                 return nmgr.doGenerateID(dbmap);
             }
-            Message msg = new Message(coordinator).setObject(typeName);
+            Message msg = new ObjectMessage(coordinator, typeName);
             Object response = null;
             try {
                 response = adapter.sendRequest(ChannelUtils.IDGEN, msg, 20000);

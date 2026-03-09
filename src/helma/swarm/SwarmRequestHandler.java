@@ -8,7 +8,7 @@
  *
  * Copyright 1998-2003 Helma Software. All Rights Reserved.
  *
- * JGroups 3.x: local interface for request-response handlers (replaces org.jgroups.blocks.RequestHandler).
+ * JGroups 3.x+: local interface for request-response handlers (replaces org.jgroups.blocks.RequestHandler).
  */
 package helma.swarm;
 

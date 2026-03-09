@@ -8,28 +8,39 @@
  *
  * Copyright 1998-2003 Helma Software. All Rights Reserved.
  *
- * JGroups 3.x compatibility: replaces PullPushAdapter with a channel adapter
- * that multiplexes by key and supports request-response for ID generation.
+ * JGroups 3.x+ compatibility: channel-based adapter that multiplexes by key
+ * and supports request-response for ID generation.
  */
 package helma.swarm;
 
-import org.jgroups.*;
 import helma.framework.core.Application;
+import org.jgroups.Address;
+import org.jgroups.JChannel;
+import org.jgroups.Message;
+import org.jgroups.ObjectMessage;
+import org.jgroups.Receiver;
+import org.jgroups.View;
 
-import java.io.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Adapter that replaces JGroups 2.x PullPushAdapter for 3.x.
+ * Adapter that replaces the old JGroups PullPushAdapter for 3.x+.
  * Multiplexes messages by key and supports request-response for IDGEN.
  */
 public class SwarmChannelAdapter {
 
     private final JChannel channel;
     private final Application app;
-    private MessageListener mainListener;
-    private final Map<Object, Object> listeners = new HashMap<>(); // key -> MessageListener or RequestHandler
+    private SwarmMessageListener mainListener;
+    private final Map<Object, Object> listeners = new HashMap<>(); // key -> SwarmMessageListener or SwarmRequestHandler
     private final Map<Object, BlockingQueue<Object>> pendingRequests = new HashMap<>();
     private final Object pendingLock = new Object();
 
@@ -63,7 +74,7 @@ public class SwarmChannelAdapter {
                         Message reqMsg = wrapPayload(msg, req.payload);
                         Object response = ((SwarmRequestHandler) listener).handle(reqMsg);
                         try {
-                            channel.send(new Message(msg.getSrc()).setObject(new KeyedPayload(kp.key, new ResponsePayload(req.requestId, response))));
+                            channel.send(new ObjectMessage(msg.getSrc(), new KeyedPayload(kp.key, new ResponsePayload(req.requestId, response))));
                         } catch (Exception e) {
                             app.logError("SwarmChannelAdapter: send response", e);
                         }
@@ -81,8 +92,8 @@ public class SwarmChannelAdapter {
                     }
                     return;
                 }
-                if (listener instanceof MessageListener) {
-                    ((MessageListener) listener).receive(wrapPayload(msg, kp.payload));
+                if (listener instanceof SwarmMessageListener) {
+                    ((SwarmMessageListener) listener).receive(wrapPayload(msg, kp.payload));
                 }
             }
 
@@ -102,40 +113,37 @@ public class SwarmChannelAdapter {
 
             @Override
             public void viewAccepted(View view) {
-                if (mainListener instanceof MembershipListener) {
-                    ((MembershipListener) mainListener).viewAccepted(view);
+                if (mainListener instanceof SwarmMembershipListener) {
+                    ((SwarmMembershipListener) mainListener).viewAccepted(view);
                 }
                 for (Object l : listeners.values()) {
-                    if (l instanceof MembershipListener) {
-                        ((MembershipListener) l).viewAccepted(view);
+                    if (l instanceof SwarmMembershipListener) {
+                        ((SwarmMembershipListener) l).viewAccepted(view);
                     }
                 }
             }
 
-            @Override
             public void suspect(Address addr) {
             }
 
-            @Override
             public void block() {
-                if (mainListener instanceof MembershipListener) {
-                    ((MembershipListener) mainListener).block();
+                if (mainListener instanceof SwarmMembershipListener) {
+                    ((SwarmMembershipListener) mainListener).block();
                 }
                 for (Object l : listeners.values()) {
-                    if (l instanceof MembershipListener) {
-                        ((MembershipListener) l).block();
+                    if (l instanceof SwarmMembershipListener) {
+                        ((SwarmMembershipListener) l).block();
                     }
                 }
             }
 
-            @Override
             public void unblock() {
-                if (mainListener instanceof MembershipListener) {
-                    ((MembershipListener) mainListener).unblock();
+                if (mainListener instanceof SwarmMembershipListener) {
+                    ((SwarmMembershipListener) mainListener).unblock();
                 }
                 for (Object l : listeners.values()) {
-                    if (l instanceof MembershipListener) {
-                        ((MembershipListener) l).unblock();
+                    if (l instanceof SwarmMembershipListener) {
+                        ((SwarmMembershipListener) l).unblock();
                     }
                 }
             }
@@ -146,7 +154,7 @@ public class SwarmChannelAdapter {
         // no-op; channel disconnect/close done by ChannelUtils
     }
 
-    public void setListener(MessageListener listener) {
+    public void setListener(SwarmMessageListener listener) {
         this.mainListener = listener;
     }
 
@@ -160,7 +168,7 @@ public class SwarmChannelAdapter {
 
     public void send(Object key, Message msg) throws Exception {
         Object payload = msg.getObject();
-        channel.send(new Message(msg.getDest()).setObject(new KeyedPayload(key, payload)));
+        channel.send(new ObjectMessage(msg.getDest(), new KeyedPayload(key, payload)));
     }
 
     /** Request-response: send request and block for response (for IDGEN). */
@@ -171,7 +179,7 @@ public class SwarmChannelAdapter {
             pendingRequests.put(requestId, queue);
         }
         try {
-            channel.send(new Message(msg.getDest()).setObject(new KeyedPayload(key, new RequestPayload(requestId, msg.getObject()))));
+            channel.send(new ObjectMessage(msg.getDest(), new KeyedPayload(key, new RequestPayload(requestId, msg.getObject()))));
             Object result = queue.poll(timeoutMs, TimeUnit.MILLISECONDS);
             return result;
         } catch (InterruptedException e) {
@@ -189,7 +197,7 @@ public class SwarmChannelAdapter {
     }
 
     private static Message wrapPayload(Message orig, Object payload) {
-        Message m = new Message(orig.getDest()).setObject(payload);
+        Message m = new ObjectMessage(orig.getDest(), payload);
         m.setSrc(orig.getSrc());
         return m;
     }

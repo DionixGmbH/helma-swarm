@@ -16,7 +16,10 @@
 
 package helma.swarm;
 
-import org.jgroups.*;
+import org.jgroups.Address;
+import org.jgroups.JChannel;
+import org.jgroups.Message;
+import org.jgroups.ObjectMessage;
 import org.apache.commons.logging.Log;
 
 import java.io.*;
@@ -31,7 +34,7 @@ import helma.objectmodel.db.NodeHandle;
 import helma.objectmodel.INode;
 
 public class SwarmSessionManager extends SessionManager
-                                 implements MessageListener, Runnable {
+                                 implements SwarmMessageListener, Runnable {
 
     // SessionIdList operation constants
     static final int TOUCH = 0;
@@ -253,11 +256,11 @@ public class SwarmSessionManager extends SessionManager
         try {
             if (session.isDistributed()) {
                 SessionUpdate update = new SessionUpdate(session, reval, transferCacheNode);
-                adapter.send(null, new Message((Address) null).setObject(update));
+                adapter.send(null, new ObjectMessage((Address) null, update));
             } else {
                 session.setDistributed(true);
                 byte[] bytes = objectToBytes(session, reval);
-                adapter.send(null, new Message((Address) null).setObject((Serializable) bytes));
+                adapter.send(null, new ObjectMessage((Address) null, (Serializable) bytes));
             }
         } catch (Exception x) {
             log.error("Error in session replication", x);
@@ -271,7 +274,7 @@ public class SwarmSessionManager extends SessionManager
                 for (int i = 0; i < ids.length; i++)
                     idSet.remove(ids[i]);
                 Serializable idlist = new SessionIdList(operation, ids);
-                adapter.send(null, new Message((Address) null).setObject(idlist));
+                adapter.send(null, new ObjectMessage((Address) null, idlist));
             }
         } catch (Exception x) {
             log.error("Error broadcasting session list", x);

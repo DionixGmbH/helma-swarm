@@ -26,7 +26,10 @@ import helma.framework.repository.FileResource;
 import helma.framework.repository.Repository;
 import helma.util.CacheMap;
 
-import org.jgroups.*;
+import org.jgroups.Address;
+import org.jgroups.JChannel;
+import org.jgroups.Message;
+import org.jgroups.ObjectMessage;
 import org.apache.commons.logging.Log;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -40,7 +43,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.*;
 
-public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListener {
+public class SwarmCache implements ObjectCache, NodeChangeListener, SwarmMessageListener {
 
     CacheMap cache;
 
@@ -140,9 +143,9 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
         InvalidationList list = new InvalidationList(keys, parentKeys, types);
         try {
             if (domain == null) {
-                adapter.send(ChannelUtils.CACHE, new Message((Address) null).setObject(list));
+                adapter.send(ChannelUtils.CACHE, new ObjectMessage((Address) null, list));
             } else {
-                adapter.send(domain.name, new Message((Address) null).setObject(list));
+                adapter.send(domain.name, new ObjectMessage((Address) null, list));
             }
         } catch (Exception x) {
             log.error("SwarmCache: Error sending invalidation list", x);

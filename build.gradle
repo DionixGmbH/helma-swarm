@@ -28,7 +28,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.jgroups:jgroups:4.2.21.Final'
+    implementation 'org.jgroups:jgroups:5.5.2.Final'
     implementation 'backport-util-concurrent:backport-util-concurrent:3.1'
     implementation 'commons-logging:commons-logging:1.2'
 

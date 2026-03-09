@@ -31,7 +31,7 @@ import java.io.File;
 
 public class ChannelUtils {
 
-    // weak hashmap for channel adapters (JGroups 3.x)
+    // weak hashmap for channel adapters (JGroups 3.x+)
     static WeakHashMap adapters = new WeakHashMap();
 
     // Ids for multiplexing.
@@ -87,8 +87,8 @@ public class ChannelUtils {
 
 class SwarmConfig {
 
-    // Default stack for JGroups 4.x (used when no swarm.conf or no matching stack).
-    // Aligns with the udp stack in swarm.conf (FRAG2, FD, VIEW_SYNC, NAKACK2, UNICAST3).
+    // Default stack for JGroups 5.x (used when no swarm.conf or no matching stack).
+    // Aligns with the udp stack in swarm.conf (FRAG2, FD, VIEW_SYNC, NAKACK2, UNICAST3) and is valid for 3.x–5.x.
     String jGroupsProps =
             "UDP(mcast_addr=224.0.0.132;mcast_port=22024;ip_ttl=32;" +
                 "bind_port=48848;port_range=1000;" +
