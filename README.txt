@@ -55,16 +55,26 @@ Helma 1.6 releases in the same swarm.
 Building
 ========
 
-HelmaSwarm is built with Apache Ant. 
+HelmaSwarm is built with Gradle.
 
-  1) Edit build.properties to match your Helma installation directory.
+  To compile and build helmaswarm-<version>.jar:
 
-  2) Run the following in the command line:
+      gradle jar
 
-       ant install
+  To install into a Helma installation (set the target directory first):
 
-This should compile and build helmaswarm-version.jar and copy it to the lib/ext 
-directory of your Helma installation along with the JGroups jar file.
+      gradle install -PhelmaInstallDir=/path/to/helma
+
+  Or set the HELMA_INSTALL_DIR environment variable, then run:
+
+      gradle install
+
+  Without helmaInstallDir, the build downloads the Helma JAR from the
+  DionixGmbH/helma GitHub releases (default version 26.3.9; override with
+  -PhelmaVersion=<version>).
+
+  The install task copies helmaswarm-<version>.jar plus jgroups-all.jar and
+  concurrent.jar into the lib/ext directory of your Helma installation.
 
 Configuration
 =============

@@ -1,0 +1,108 @@
+plugins {
+    id 'java'
+}
+
+group = 'helma'
+version = '26.3.9'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+
+// Resolve Helma installation directory from a Gradle property or environment variable
+ext.helmaInstallDir = (project.findProperty('helmaInstallDir') ?: System.getenv('HELMA_INSTALL_DIR'))
+ext.helmaVersion = (project.findProperty('helmaVersion') ?: version)
+def helmaDownloadDir = layout.buildDirectory.dir('helma').get().asFile
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation files('lib/jgroups-all.jar', 'lib/concurrent.jar')
+    implementation 'commons-logging:commons-logging:1.2'
+
+    if (helmaInstallDir) {
+        implementation fileTree(dir: "${helmaInstallDir}/build/libs", include: 'helma-*.jar')
+    } else {
+        implementation fileTree(dir: helmaDownloadDir, include: 'helma-*.jar')
+    }
+}
+
+def downloadHelma = tasks.register('downloadHelma') {
+    onlyIf { !helmaInstallDir }
+    def outFile = file("${helmaDownloadDir}/helma-${helmaVersion}.jar")
+    outputs.file(outFile)
+    outputs.upToDateWhen { outFile.exists() }
+    doLast {
+        helmaDownloadDir.mkdirs()
+        def url = "https://github.com/DionixGmbH/helma/releases/download/${helmaVersion}/helma-${helmaVersion}.jar"
+        logger.lifecycle("Downloading Helma ${helmaVersion} from GitHub…")
+        outFile.withOutputStream { it << new URL(url).openStream() }
+    }
+}
+tasks.named('compileJava') {
+    dependsOn downloadHelma
+}
+
+jar {
+    archiveBaseName = 'helmaswarm'
+    destinationDirectory = file('lib')
+}
+
+tasks.named('clean') {
+    doLast {
+        delete 'classes'
+        delete fileTree('lib') {
+            include 'helmaswarm*.jar'
+        }
+    }
+}
+
+tasks.register('install') {
+    group = 'distribution'
+    description = 'Installs the HelmaSwarm JAR and required libs into the Helma installation.'
+    dependsOn tasks.named('jar')
+
+    doLast {
+        if (!helmaInstallDir) {
+            throw new GradleException(
+                    "Helma installation directory not configured. " +
+                            "Set project property 'helmaInstallDir' or environment variable 'HELMA_INSTALL_DIR'."
+            )
+        }
+
+        def extLibDir = file("${helmaInstallDir}/lib/ext")
+
+        copy {
+            from "lib/helmaswarm-${version}.jar"
+            into extLibDir
+        }
+        copy {
+            from 'lib/jgroups-all.jar', 'lib/concurrent.jar'
+            into extLibDir
+        }
+    }
+}
+
+tasks.register('package', Zip) {
+    group = 'distribution'
+    description = 'Creates a distributable ZIP for distribution.'
+
+    archiveFileName = "helmaswarm-${version}.zip"
+
+    from('.') {
+        into "helmaswarm-${version}"
+        exclude '*.zip', '**/*~', 'classes/**', 'CVS/**'
+        exclude 'build/**', '.gradle/**', '.git/**'
+    }
+}
