@@ -253,7 +253,13 @@ public class SwarmCache implements ObjectCache, NodeChangeListener, MessageListe
 
     public Map<String,Object> getStatistics() {
         JChannel channel = adapter.getTransport();
-        return channel.dumpStats();
+        Map<String, Map<String, Object>> stats = channel.dumpStats();
+        // Flatten protocol stats into a single map for compatibility
+        Map<String, Object> flat = new HashMap<String, Object>();
+        for (Map.Entry<String, Map<String, Object>> e : stats.entrySet()) {
+            flat.put(e.getKey(), e.getValue());
+        }
+        return flat;
     }
 
     /**

@@ -87,8 +87,8 @@ public class ChannelUtils {
 
 class SwarmConfig {
 
-    // Default stack for JGroups 3.x (used when no swarm.conf or no matching stack).
-    // Aligns with the udp stack in swarm.conf (FRAG2, FD, VIEW_SYNC).
+    // Default stack for JGroups 4.x (used when no swarm.conf or no matching stack).
+    // Aligns with the udp stack in swarm.conf (FRAG2, FD, VIEW_SYNC, NAKACK2, UNICAST3).
     String jGroupsProps =
             "UDP(mcast_addr=224.0.0.132;mcast_port=22024;ip_ttl=32;" +
                 "bind_port=48848;port_range=1000;" +
@@ -98,8 +98,8 @@ class SwarmConfig {
             "FD_SOCK:" +
             "FD(timeout=10000;max_tries=5;shun=true):" +
             "VERIFY_SUSPECT(timeout=1500):" +
-            "pbcast.NAKACK(gc_lag=50;retransmit_timeout=300,600,1200,2400,4800):" +
-            "UNICAST(timeout=5000):" +
+            "pbcast.NAKACK2(gc_lag=50;retransmit_timeout=300,600,1200,2400,4800):" +
+            "UNICAST3(timeout=5000):" +
             "pbcast.STABLE(desired_avg_gossip=20000):" +
             "VIEW_SYNC(avg_send_interval=60000):" +
             "pbcast.GMS(join_timeout=5000;join_retry_timeout=2000;shun=false;print_local_addr=true):" +
