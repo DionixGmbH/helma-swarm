@@ -24,4 +24,4 @@ jobs:
       - name: Compile with Gradle
         run: devbox run --config .github -- bash -c 'cd .. && gradle :compileJava'
         env:
-          HELMA_VERSION: ${{ env.HELMA_VERSION || '26.5.6' }}
+          HELMA_VERSION: ${{ env.HELMA_VERSION || '26.6.10.5' }}

@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'helma'
-version = '26.5.6'
+version = '26.6.10.5'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_25
