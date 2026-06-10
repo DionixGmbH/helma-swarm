@@ -21,6 +21,8 @@ sourceSets {
 // Resolve Helma installation directory from a Gradle property or environment variable
 ext.helmaInstallDir = (project.findProperty('helmaInstallDir') ?: System.getenv('HELMA_INSTALL_DIR'))
 ext.helmaVersion = (project.findProperty('helmaVersion') ?: System.getenv('HELMA_VERSION') ?: version)
+// The Helma JAR inside a 4-digit release is always named with the 3-digit prefix.
+ext.helmaJarVersion = helmaVersion.tokenize('.').take(3).join('.')
 def helmaDownloadDir = layout.buildDirectory.dir('helma').get().asFile
 
 repositories {
@@ -41,13 +43,13 @@ dependencies {
 
 def downloadHelma = tasks.register('downloadHelma') {
     onlyIf { !helmaInstallDir }
-    def outFile = file("${helmaDownloadDir}/helma-${helmaVersion}.jar")
+    def outFile = file("${helmaDownloadDir}/helma-${helmaJarVersion}.jar")
     outputs.file(outFile)
     outputs.upToDateWhen { outFile.exists() }
     doLast {
         helmaDownloadDir.mkdirs()
-        def url = "https://github.com/DionixGmbH/helma/releases/download/${helmaVersion}/helma-${helmaVersion}.jar"
-        logger.lifecycle("Downloading Helma ${helmaVersion} from GitHub…")
+        def url = "https://github.com/DionixGmbH/helma/releases/download/${helmaVersion}/helma-${helmaJarVersion}.jar"
+        logger.lifecycle("Downloading Helma ${helmaVersion} (JAR helma-${helmaJarVersion}.jar) from GitHub…")
         outFile.withOutputStream { it << new URL(url).openStream() }
     }
 }
