@@ -70,7 +70,7 @@ HelmaSwarm is built with Gradle.
       gradle install
 
   Without helmaInstallDir, the build downloads the Helma JAR from the
-  DionixGmbH/helma GitHub releases (default version 26.6.10.8; override with
+  DionixGmbH/helma GitHub releases (default version 26.6.12; override with
   -PhelmaVersion=<version>).
 
   The install task copies helmaswarm-<version>.jar plus the JGroups and
